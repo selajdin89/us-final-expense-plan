@@ -12,7 +12,7 @@ import {
 	Slider,
 	DatePicker,
 } from "antd";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import flowerBg from "../../assets/images/flower-bg.png";
 import couple from "../../assets/images/couple.png";
 import singleFlower from "../../assets/images/single-flower.png";
@@ -55,19 +55,41 @@ const FormApp = () => {
 	const [currentScreen, setCurrentScreen] = useState(1);
 	const [isFirstScreenValid, setIsFirstScreenValid] = useState(false);
 
+	const location = useLocation();
+	const navigate = useNavigate();
 	// Save form data to sessionStorage before navigating
+
 	const saveFormData = () => {
 		const formData = form.getFieldsValue();
+		if (formData.dob && formData.dob.isValid()) {
+			formData.dob = formData.dob.format(dateFormat); // Convert dayjs object to string
+		}
 		sessionStorage.setItem("formData", JSON.stringify(formData));
 	};
+	// const saveFormData = () => {
+	// 	const formData = form.getFieldsValue();
+	// 	sessionStorage.setItem("formData", JSON.stringify(formData));
+	// };
 
 	// Retrieve form data from sessionStorage
+
 	const loadFormData = () => {
 		const savedData = sessionStorage.getItem("formData");
 		if (savedData) {
-			form.setFieldsValue(JSON.parse(savedData));
+			const parsedData = JSON.parse(savedData);
+			if (parsedData.dob) {
+				parsedData.dob = dayjs(parsedData.dob, dateFormat); // Convert string to dayjs object
+			}
+			form.setFieldsValue(parsedData);
 		}
 	};
+
+	// const loadFormData = () => {
+	// 	const savedData = sessionStorage.getItem("formData");
+	// 	if (savedData) {
+	// 		form.setFieldsValue(JSON.parse(savedData));
+	// 	}
+	// };
 
 	// Clear sessionStorage on page reload
 	useEffect(() => {
@@ -84,6 +106,16 @@ const FormApp = () => {
 	useEffect(() => {
 		loadFormData();
 	}, []);
+
+	useEffect(() => {
+		// Sync currentScreen with route or reset on back
+		const savedScreen = sessionStorage.getItem("currentScreen");
+		if (location.state?.screen) {
+			setCurrentScreen(location.state.screen);
+		} else if (savedScreen) {
+			setCurrentScreen(parseInt(savedScreen, 10));
+		}
+	}, [location]);
 
 	const handleNextScreen = () => {
 		form
@@ -146,12 +178,41 @@ const FormApp = () => {
 		return `+1`;
 	};
 
+	// const validateDateOfBirth = (_, value) => {
+	// 	if (!value) {
+	// 		return Promise.reject("Please enter your date of birth");
+	// 	}
+	// 	const date = dayjs(value, dateFormat, true);
+	// 	if (!date.isValid()) {
+	// 		return Promise.reject("Invalid date format (MM/DD/YYYY)");
+	// 	}
+	// 	const year = date.year();
+	// 	const currentYear = dayjs().year();
+	// 	if (year < 1900 || year > currentYear) {
+	// 		return Promise.reject(`Year must be between 1900 and ${currentYear}`);
+	// 	}
+	// 	const month = date.month() + 1;
+	// 	if (month < 1 || month > 12) {
+	// 		return Promise.reject("Month must be between 01 and 12");
+	// 	}
+	// 	const day = date.date();
+	// 	if (day < 1 || day > 31) {
+	// 		return Promise.reject("Day must be between 01 and 31");
+	// 	}
+	// 	if (date.date() !== day) {
+	// 		return Promise.reject("Invalid date (e.g., 02/31/2023 is not valid)");
+	// 	}
+	// 	return Promise.resolve();
+	// };
+
 	const validateDateOfBirth = (_, value) => {
 		if (!value) {
 			return Promise.reject("Please enter your date of birth");
 		}
-		const date = dayjs(value, dateFormat, true);
-		if (!date.isValid()) {
+		// Handle both dayjs objects and strings
+		const date =
+			typeof value === "string" ? dayjs(value, dateFormat, true) : value;
+		if (!date || !date.isValid()) {
 			return Promise.reject("Invalid date format (MM/DD/YYYY)");
 		}
 		const year = date.year();
@@ -172,7 +233,6 @@ const FormApp = () => {
 		}
 		return Promise.resolve();
 	};
-
 	const formatDateInput = (input) => {
 		let date = input.replace(/\D/g, "");
 		if (date.length > 2) date = `${date.slice(0, 2)}/${date.slice(2)}`;
