@@ -12,7 +12,7 @@ import {
 	Slider,
 	DatePicker,
 } from "antd";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import flowerBg from "../../assets/images/flower-bg.png";
 import couple from "../../assets/images/couple.png";
 import singleFlower from "../../assets/images/single-flower.png";
@@ -55,21 +55,16 @@ const FormApp = () => {
 	const [currentScreen, setCurrentScreen] = useState(1);
 	const [isFirstScreenValid, setIsFirstScreenValid] = useState(false);
 
-	const location = useLocation();
-	const navigate = useNavigate();
 	// Save form data to sessionStorage before navigating
-
 	const saveFormData = () => {
 		const formData = form.getFieldsValue();
-		if (formData.dob && formData.dob.isValid()) {
-			formData.dob = formData.dob.format(dateFormat); // Convert dayjs object to string
+		// Convert Day.js object to string before saving
+		if (formData.dob && dayjs.isDayjs(formData.dob)) {
+			formData.dob = formData.dob.format(dateFormat);
 		}
 		sessionStorage.setItem("formData", JSON.stringify(formData));
+		sessionStorage.setItem("currentScreen", currentScreen.toString());
 	};
-	// const saveFormData = () => {
-	// 	const formData = form.getFieldsValue();
-	// 	sessionStorage.setItem("formData", JSON.stringify(formData));
-	// };
 
 	// Retrieve form data from sessionStorage
 
@@ -77,24 +72,48 @@ const FormApp = () => {
 		const savedData = sessionStorage.getItem("formData");
 		if (savedData) {
 			const parsedData = JSON.parse(savedData);
+			// Convert string back to Day.js object
 			if (parsedData.dob) {
-				parsedData.dob = dayjs(parsedData.dob, dateFormat); // Convert string to dayjs object
+				parsedData.dob = dayjs(parsedData.dob, dateFormat);
+			}
+			// If phone number exists in saved data, use it, otherwise set to "+1"
+			if (!parsedData.phone) {
+				parsedData.phone = "+1";
 			}
 			form.setFieldsValue(parsedData);
+		} else {
+			// Initialize phone with "+1" if no saved data exists
+			form.setFieldsValue({ phone: "+1" });
 		}
-	};
 
+		const savedScreen = sessionStorage.getItem("currentScreen");
+		// Default to screen 1 if no saved screen exists
+		setCurrentScreen(savedScreen ? parseInt(savedScreen, 10) : 1);
+	};
 	// const loadFormData = () => {
 	// 	const savedData = sessionStorage.getItem("formData");
 	// 	if (savedData) {
-	// 		form.setFieldsValue(JSON.parse(savedData));
+	// 		const parsedData = JSON.parse(savedData);
+	// 		// Convert string back to Day.js object
+	// 		if (parsedData.dob) {
+	// 			parsedData.dob = dayjs(parsedData.dob, dateFormat);
+	// 		}
+	// 		form.setFieldsValue(parsedData);
+	// 	}
+
+	// 	const savedScreen = sessionStorage.getItem("currentScreen");
+	// 	if (savedScreen) {
+	// 		setCurrentScreen(parseInt(savedScreen, 10));
 	// 	}
 	// };
-
 	// Clear sessionStorage on page reload
+
 	useEffect(() => {
 		const handleBeforeUnload = () => {
-			sessionStorage.removeItem("formData");
+			// Only clear if you want fresh form on reload
+			// sessionStorage.removeItem("formData");
+			// Or keep the data but reset the screen to 1
+			sessionStorage.setItem("currentScreen", "1");
 		};
 		window.addEventListener("beforeunload", handleBeforeUnload);
 		return () => {
@@ -102,20 +121,20 @@ const FormApp = () => {
 		};
 	}, []);
 
+	// useEffect(() => {
+	// 	const handleBeforeUnload = () => {
+	// 		sessionStorage.removeItem("formData");
+	// 	};
+	// 	window.addEventListener("beforeunload", handleBeforeUnload);
+	// 	return () => {
+	// 		window.removeEventListener("beforeunload", handleBeforeUnload);
+	// 	};
+	// }, []);
+
 	// Load form data when the component mounts
 	useEffect(() => {
 		loadFormData();
 	}, []);
-
-	useEffect(() => {
-		// Sync currentScreen with route or reset on back
-		const savedScreen = sessionStorage.getItem("currentScreen");
-		if (location.state?.screen) {
-			setCurrentScreen(location.state.screen);
-		} else if (savedScreen) {
-			setCurrentScreen(parseInt(savedScreen, 10));
-		}
-	}, [location]);
 
 	const handleNextScreen = () => {
 		form
@@ -178,61 +197,42 @@ const FormApp = () => {
 		return `+1`;
 	};
 
-	// const validateDateOfBirth = (_, value) => {
-	// 	if (!value) {
-	// 		return Promise.reject("Please enter your date of birth");
-	// 	}
-	// 	const date = dayjs(value, dateFormat, true);
-	// 	if (!date.isValid()) {
-	// 		return Promise.reject("Invalid date format (MM/DD/YYYY)");
-	// 	}
-	// 	const year = date.year();
-	// 	const currentYear = dayjs().year();
-	// 	if (year < 1900 || year > currentYear) {
-	// 		return Promise.reject(`Year must be between 1900 and ${currentYear}`);
-	// 	}
-	// 	const month = date.month() + 1;
-	// 	if (month < 1 || month > 12) {
-	// 		return Promise.reject("Month must be between 01 and 12");
-	// 	}
-	// 	const day = date.date();
-	// 	if (day < 1 || day > 31) {
-	// 		return Promise.reject("Day must be between 01 and 31");
-	// 	}
-	// 	if (date.date() !== day) {
-	// 		return Promise.reject("Invalid date (e.g., 02/31/2023 is not valid)");
-	// 	}
-	// 	return Promise.resolve();
-	// };
-
 	const validateDateOfBirth = (_, value) => {
 		if (!value) {
 			return Promise.reject("Please enter your date of birth");
 		}
-		// Handle both dayjs objects and strings
+
+		// Handle both string and Day.js values
 		const date =
 			typeof value === "string" ? dayjs(value, dateFormat, true) : value;
-		if (!date || !date.isValid()) {
+
+		if (!date.isValid()) {
 			return Promise.reject("Invalid date format (MM/DD/YYYY)");
 		}
+
 		const year = date.year();
 		const currentYear = dayjs().year();
 		if (year < 1900 || year > currentYear) {
 			return Promise.reject(`Year must be between 1900 and ${currentYear}`);
 		}
+
 		const month = date.month() + 1;
 		if (month < 1 || month > 12) {
 			return Promise.reject("Month must be between 01 and 12");
 		}
+
 		const day = date.date();
 		if (day < 1 || day > 31) {
 			return Promise.reject("Day must be between 01 and 31");
 		}
+
 		if (date.date() !== day) {
 			return Promise.reject("Invalid date (e.g., 02/31/2023 is not valid)");
 		}
+
 		return Promise.resolve();
 	};
+
 	const formatDateInput = (input) => {
 		let date = input.replace(/\D/g, "");
 		if (date.length > 2) date = `${date.slice(0, 2)}/${date.slice(2)}`;
@@ -240,9 +240,9 @@ const FormApp = () => {
 		return date;
 	};
 
-	useEffect(() => {
-		form.setFieldsValue({ phone: "+1" });
-	}, [form]);
+	// useEffect(() => {
+	// 	form.setFieldsValue({ phone: "+1" });
+	// }, [form]);
 
 	const onFinishFailed = (errorInfo) => {
 		console.log("Failed:", errorInfo);
